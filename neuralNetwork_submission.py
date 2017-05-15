@@ -19,6 +19,10 @@ def ReLU(X):
     return X * (X > 0.)
 
 
+def dReLU(x):
+    return 1. * (x > 0)
+
+
 def binary_crossentropy(true, pred):
     pred = pred.flatten()
     return -np.sum(true * np.log(pred) + (1. - true) * np.log(1. - pred))
@@ -36,6 +40,9 @@ class NeuralNetworkClassifier(classificationMethod.ClassificationMethod):
         self.numpRng = np.random.RandomState(seed)
         self.initialWeightBound = None
         self.epoch = 300
+        self.activations = []
+        self.Wdelta = [None] * (len(self.hiddenUnits[:]) + 1)
+        self.bdelta = [None] * (len(self.hiddenUnits[:]) + 1)
 
     def train(self, trainingData, trainingLabels):
 
@@ -130,8 +137,17 @@ class NeuralNetworkClassifier(classificationMethod.ClassificationMethod):
         """
 
         "*** YOUR CODE HERE ***"
+        activation = trainingData
+        self.activations.append(trainingData)
+        for i in range(len(self.W)):
+            z = np.dot(activation, self.W[i]) + self.b[i]
+            if i == len(self.W) - 1:
+                activation = self.outAct(z)
+                netOut = activation
+            else:
+                activation = ReLU(z)
+            self.activations.append(activation)
 
-        netOut = 0
         return netOut
 
     def backwardPropagation(self, netOut, trainingLabels, learningRate):
@@ -169,7 +185,18 @@ class NeuralNetworkClassifier(classificationMethod.ClassificationMethod):
 
         "*** YOUR CODE HERE ***"
 
-        delta = netOut - trainingLabels
+        delta = self.activations[-1] - trainingLabels
+        self.Wdelta[-1] = np.dot(self.activations[-2].T, delta)
+        self.bdelta[-1] = np.sum(delta, axis=0)
+
+        for i in range(2, self.nLayer + 1):
+            delta = np.multiply(np.dot(delta, self.W[-i + 1].T), dReLU(self.activations[-i]))
+            self.Wdelta[-i] = np.dot(self.activations[-i - 1].T, delta)
+            self.bdelta[-i] = np.sum(delta, axis=0)
+
+        for i in range(self.nLayer):
+            self.W[i] -= learningRate * self.Wdelta[i]
+            self.b[i] -= learningRate * self.bdelta[i]
 
     def classify(self, testData):
         """
